@@ -1,0 +1,29 @@
+// Copyright 2020-2022, Collabora, Ltd.
+// SPDX-License-Identifier: BSL-1.0
+
+pluginManagement {
+
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+
+    // This triggers an error if any individual project tries to add a repo not listed here.
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+
+rootProject.name = 'monado'
+
+include ':src:xrt:auxiliary:android'
+include ':src:xrt:ipc:android'
+include ':src:xrt:targets:android_common'
+include ':src:xrt:targets:openxr_android'
