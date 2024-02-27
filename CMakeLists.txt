@@ -52,6 +52,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 ###
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sanitizers")
+
 include(OptionWithDeps)
 include(SPIR-V)
 include(GNUInstallDirs)
@@ -87,6 +88,10 @@ find_package(Vulkan MODULE)
 find_package(HIDAPI MODULE)
 find_package(bluetooth MODULE)
 find_package(OpenHMD MODULE)
+
+#include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk/native/jni/OpenCVConfig.cmake")
+set(OpenCV_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk/native/jni/")
+
 find_package(
 	OpenCV
 	COMPONENTS
@@ -97,8 +102,15 @@ find_package(
 		imgcodecs
 		features2d
 		video
-		CONFIG
+		REQUIRED
 	)
+
+if(OpenCV_FOUND)
+	message(STATUS "OpenCV_FOUND")
+else()
+	message(FATAL_ERROR "OpenCV_NOT_FOUND")
+endif()
+
 find_package(Libusb1 MODULE)
 find_package(JPEG MODULE)
 find_package(realsense2 CONFIG)
@@ -107,7 +119,7 @@ find_package(SDL2 CONFIG)
 find_package(ZLIB MODULE)
 find_package(cJSON MODULE)
 find_package(LeapV2 MODULE)
-find_package(LeapSDK 5 CONFIG)
+find_package(LeapSDK 5)
 find_package(ONNXRuntime MODULE)
 if(NOT WIN32)
 	find_package(EGL MODULE)
@@ -148,6 +160,9 @@ endif()
 if(PKGCONFIG_FOUND AND NOT ANDROID)
 	# @TODO Turn into a find_package LIBUVC file.
 	pkg_check_modules(LIBUVC libuvc)
+
+	# @TODO Turn into a find_package FFMPEG file.
+	pkg_check_modules(FFMPEG libavcodec)
 endif()
 
 find_package(OpenGL)
@@ -178,6 +193,25 @@ if(XRT_HAVE_LINUX OR MINGW)
 	pkg_check_modules(GST gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
 	pkg_check_modules(SURVIVE IMPORTED_TARGET survive)
 endif()
+
+set(basalt_FOUND 1)
+# Find a external SLAM implementation
+set(EXTERNAL_SLAM_SYSTEMS basalt)
+foreach(slam_system IN LISTS EXTERNAL_SLAM_SYSTEMS)
+	if(PKGCONFIG_FOUND)
+		pkg_check_modules(${slam_system} ${slam_system})
+	endif()
+	set(basalt_FOUND 1)
+
+	if(${slam_system}_FOUND)
+		set(SLAM_NAME ${slam_system})
+		set(SLAM_LDFLAGS ${${slam_system}_LDFLAGS})
+		set(SLAM_LIBRARIES ${${slam_system}_LIBRARIES})
+		set(SLAM_INCLUDE_DIRS ${${slam_system}_INCLUDE_DIRS})
+		# Exit after the first we find.
+		break()
+	endif()
+endforeach()
 
 # Find openvr library
 find_library(OPENVR_LIBRARIES NAMES openvr_api)
@@ -233,7 +267,6 @@ option_with_deps(XRT_HAVE_XLIB "Enable xlib support" DEPENDS X11_FOUND)
 option_with_deps(XRT_HAVE_XRANDR "Enable xlib-xrandr support" DEPENDS XRANDR_FOUND)
 
 # System deps to use (sorted)
-option_with_deps(XRT_HAVE_OPENCV "Enable OpenCV backend" DEPENDS OpenCV_FOUND)
 option_with_deps(XRT_HAVE_DBUS "Enable dbus support (for BLE support)" DEPENDS DBUS_FOUND)
 option_with_deps(XRT_HAVE_LIBBSD "Enable libbsd support" DEPENDS LIBBSD_FOUND)
 option_with_deps(XRT_HAVE_LIBUDEV "Enable libudev (used for device probing on Linux)" DEPENDS UDEV_FOUND)
@@ -242,6 +275,11 @@ option_with_deps(XRT_HAVE_SYSTEMD "Enable systemd support" DEPENDS Systemd_FOUND
 
 # Only use system cJSON if it includes https://github.com/DaveGamble/cJSON/pull/377
 option_with_deps(XRT_HAVE_SYSTEM_CJSON "Enable cJSON from system, instead of bundled source" DEPENDS CJSON_FOUND "cJSON_VERSION VERSION_GREATER_EQUAL 1.7.13")
+
+# SLAM backends and deps (sorted)
+option_with_deps(XRT_HAVE_OPENCV "Enable OpenCV backend" DEPENDS OpenCV_FOUND)
+option_with_deps(XRT_HAVE_BASALT "Enable Basalt support" DEPENDS basalt_FOUND)
+option_with_deps(XRT_HAVE_KIMERA "Enable Kimera support" DEPENDS kimera_vio_FOUND)
 
 # Hand tracking deps
 option_with_deps(XRT_HAVE_ONNXRUNTIME "Enable ONNX runtime support" DEPENDS ONNXRUNTIME_FOUND)
@@ -267,7 +305,7 @@ set(XRT_FEATURE_OPENXR_DEBUG_UTILS OFF) # Has never been enabled
 option_with_deps(XRT_FEATURE_RENDERDOC "Enable RenderDoc API" DEPENDS "RT_LIBRARY OR WIN32 OR ANDROID")
 option_with_deps(XRT_FEATURE_SERVICE "Enable separate service module for OpenXR runtime" DEPENDS XRT_MODULE_IPC XRT_FEATURE_OPENXR)
 option_with_deps(XRT_FEATURE_SERVICE_SYSTEMD "Enable systemd socket activation of the service" DEPENDS XRT_HAVE_SYSTEMD XRT_FEATURE_SERVICE)
-option_with_deps(XRT_FEATURE_SLAM "Enable SLAM tracking support" DEPENDS XRT_HAVE_OPENCV XRT_HAVE_LINUX)
+option_with_deps(XRT_FEATURE_SLAM "Enable SLAM tracking support" DEPENDS XRT_HAVE_OPENCV "XRT_HAVE_BASALT OR XRT_HAVE_KIMERA")
 option(XRT_FEATURE_SSE2 "Build using SSE2 instructions, if building for 32-bit x86" ON)
 option_with_deps(XRT_FEATURE_STEAMVR_PLUGIN "Build SteamVR plugin" DEPENDS "NOT ANDROID")
 option_with_deps(XRT_FEATURE_TRACING "Enable debug tracing on supported platforms" DEFAULT OFF DEPENDS "XRT_HAVE_PERCETTO OR XRT_HAVE_TRACY")
@@ -290,6 +328,7 @@ option_with_deps(XRT_INSTALL_ABSOLUTE_SYSTEMD_UNIT_FILES "Use an absolute path t
 
 # Driver deps to use (sorted, though there are some internal dependencies)
 option_with_deps(XRT_HAVE_BLUETOOTH "Enable Bluetooth (legacy, non-ble)" DEPENDS BLUETOOTH_FOUND)
+option_with_deps(XRT_HAVE_FFMPEG "Enable ffmpeg testing video driver" DEPENDS FFMPEG_FOUND)
 option_with_deps(XRT_HAVE_GST "Enable gstreamer" DEPENDS GST_FOUND)
 option_with_deps(XRT_HAVE_HIDAPI "Enable libhidapi (used for PSVR)" DEPENDS HIDAPI_FOUND)
 option_with_deps(XRT_HAVE_JPEG "Enable jpeg code (used for some video drivers)" DEPENDS JPEG_FOUND)
@@ -418,9 +457,6 @@ if(NOT DEFINED XRT_FEATURE_OPENXR_LAYER_FB_IMAGE_LAYOUT)
 endif()
 if(NOT DEFINED XRT_FEATURE_OPENXR_LAYER_FB_SETTINGS)
 	set(XRT_FEATURE_OPENXR_LAYER_FB_SETTINGS OFF)
-endif()
-if(NOT DEFINED XRT_FEATURE_OPENXR_LAYER_FB_DEPTH_TEST)
-	set(XRT_FEATURE_OPENXR_LAYER_FB_DEPTH_TEST OFF)
 endif()
 
 # Defaults for OpenXR spaces
@@ -570,14 +606,17 @@ endif()
 message(STATUS "#####----- Config -----#####")
 message(STATUS "#    GIT_DESC:        ${GIT_DESC}")
 message(STATUS "#")
+message(STATUS "#    BASALT:          ${XRT_HAVE_BASALT}")
 message(STATUS "#    BLUETOOTH:       ${XRT_HAVE_BLUETOOTH}")
 message(STATUS "#    D3D11:           ${XRT_HAVE_D3D11}")
 message(STATUS "#    D3D12:           ${XRT_HAVE_D3D12}")
 message(STATUS "#    DBUS:            ${XRT_HAVE_DBUS}")
 message(STATUS "#    EGL:             ${XRT_HAVE_EGL}")
+message(STATUS "#    FFMPEG:          ${XRT_HAVE_FFMPEG}")
 message(STATUS "#    GST (GStreamer): ${XRT_HAVE_GST}")
 message(STATUS "#    HIDAPI:          ${XRT_HAVE_HIDAPI}")
 message(STATUS "#    JPEG:            ${XRT_HAVE_JPEG}")
+message(STATUS "#    KIMERA:          ${XRT_HAVE_KIMERA}")
 message(STATUS "#    LIBBSD:          ${XRT_HAVE_LIBBSD}")
 message(STATUS "#    LIBUSB:          ${XRT_HAVE_LIBUSB}")
 message(STATUS "#    LIBUVC:          ${XRT_HAVE_LIBUVC}")
@@ -634,7 +673,6 @@ message(STATUS "#    FEATURE_OPENXR_LAYER_EQUIRECT2:               ${XRT_FEATURE
 message(STATUS "#    FEATURE_OPENXR_LAYER_FB_ALPHA_BLEND:          ${XRT_FEATURE_OPENXR_LAYER_FB_ALPHA_BLEND}")
 message(STATUS "#    FEATURE_OPENXR_LAYER_FB_IMAGE_LAYOUT          ${XRT_FEATURE_OPENXR_LAYER_FB_IMAGE_LAYOUT}")
 message(STATUS "#    FEATURE_OPENXR_LAYER_FB_SETTINGS:             ${XRT_FEATURE_OPENXR_LAYER_FB_SETTINGS}")
-message(STATUS "#    FEATURE_OPENXR_LAYER_FB_DEPTH_TEST:           ${XRT_FEATURE_OPENXR_LAYER_FB_DEPTH_TEST}")
 message(STATUS "#    FEATURE_OPENXR_OVERLAY:                       ${XRT_FEATURE_OPENXR_OVERLAY}")
 message(STATUS "#    FEATURE_OPENXR_PERFORMANCE_SETTINGS:          ${XRT_FEATURE_OPENXR_PERFORMANCE_SETTINGS}")
 message(STATUS "#    FEATURE_OPENXR_SPACE_LOCAL_FLOOR:             ${XRT_FEATURE_OPENXR_SPACE_LOCAL_FLOOR}")

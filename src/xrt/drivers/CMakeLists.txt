@@ -357,11 +357,16 @@ endif()
 if(XRT_BUILD_DRIVER_ANDROID)
 	add_library(
 		drv_android STATIC android/android_prober.c android/android_prober.h
-				   android/android_sensors.c android/android_sensors.h
+				   android/android_sensors.c android/android_sensors.h android/YangCameraAndroid.cpp
 		)
 	target_link_libraries(
 		drv_android
 		PRIVATE
+			camera2ndk
+			mediandk
+			-ljnigraphics
+			-landroid # Add this.
+
 			xrt-interfaces
 			aux_util
 			aux_os

@@ -251,35 +251,35 @@ p_factory_ensure_slam_frameserver(struct p_factory *fact)
 
 	// SLAM tracker with EuRoC frameserver
 
-#ifdef XRT_BUILD_DRIVER_EUROC
-	if (debug_get_option_euroc_path() != NULL) {
+//#ifdef XRT_BUILD_DRIVER_EUROC
+//	if (debug_get_option_euroc_path() != NULL) {
 		struct xrt_slam_sinks empty_sinks = {0};
 		struct xrt_slam_sinks *sinks = &empty_sinks;
 
 		xrt_prober_open_video_device(&fact->p->base, NULL, &fact->xfctx, &fact->xfs);
 		assert(fact->xfs->source_id == 0xECD0FEED && "xfs is not Euroc, unsynced open_video_device?");
 
-		struct euroc_player_config ep_config;
-		euroc_player_fill_default_config_for(&ep_config, debug_get_option_euroc_path());
+//		struct euroc_player_config ep_config;
+//		euroc_player_fill_default_config_for(&ep_config, debug_get_option_euroc_path());
 
-#ifdef XRT_FEATURE_SLAM
-		struct t_slam_tracker_config st_config;
-		t_slam_fill_default_config(&st_config);
-		st_config.cam_count = ep_config.dataset.cam_count;
+//#ifdef XRT_FEATURE_SLAM
+//		struct t_slam_tracker_config st_config;
+//		t_slam_fill_default_config(&st_config);
+//		st_config.cam_count = ep_config.dataset.cam_count;
 
-		int ret = t_slam_create(&fact->xfctx, &st_config, &fact->xts, &sinks);
+		int ret = t_slam_create(&fact->xfctx, NULL, &fact->xts, &sinks);
 		if (ret != 0) {
 			U_LOG_W("Unable to initialize SLAM tracking, the Euroc driver will not be tracked");
 		}
-#else
-		U_LOG_W("SLAM tracking support is disabled, the Euroc driver will not be tracked");
-#endif
+//#else
+//		U_LOG_W("SLAM tracking support is disabled, the Euroc driver will not be tracked");
+//#endif
 
 		xrt_fs_slam_stream_start(fact->xfs, sinks);
 
 		return true;
-	}
-#endif
+//	}
+//#endif
 
 	// SLAM tracker with RealSense frameserver
 
@@ -379,6 +379,8 @@ p_factory_create_tracked_psvr(struct xrt_tracking_factory *xfact, struct xrt_tra
 static int
 p_factory_create_tracked_slam(struct xrt_tracking_factory *xfact, struct xrt_tracked_slam **out_xts)
 {
+    U_LOG_E("p_factory_create_tracked_slam 0");
+
 #ifdef XRT_FEATURE_SLAM
 	struct p_factory *fact = p_factory(xfact);
 
@@ -389,10 +391,12 @@ p_factory_create_tracked_slam(struct xrt_tracking_factory *xfact, struct xrt_tra
 	if (!fact->started_xts) {
 		xts = fact->xts;
 	}
+    U_LOG_E("p_factory_create_tracked_slam 11");
 
 	if (xts == NULL) {
 		return -1;
 	}
+    U_LOG_E("p_factory_create_tracked_slam 1");
 
 	fact->started_xts = true;
 	t_slam_start(xts);

@@ -69,7 +69,7 @@ android_prober_autoprobe(struct xrt_auto_prober *xap,
                          struct xrt_prober *xp,
                          struct xrt_device **out_xdevs)
 {
-	struct android_device *dd = android_device_create();
+	struct android_device *dd = android_device_create(xp);
 	out_xdevs[0] = &dd->base;
 	return 1;
 }

@@ -185,6 +185,25 @@ android_device_get_tracked_pose(struct xrt_device *xdev,
 	                                                               XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT);
 }
 
+//! Corrections specific for original euroc datasets and Kimera.
+//! If your datasets comes from a different camera you should probably
+//! use a different pose correction function.
+XRT_MAYBE_UNUSED static inline struct xrt_pose
+euroc_device_correct_pose_from_kimera(struct xrt_pose pose)
+{
+    //! @todo Implement proper pose corrections for the original euroc datasets
+    //! @todo Allow to use different pose corrections depending on the device used to record
+    return pose;
+}
+
+//! Similar to `euroc_device_correct_pose_from_kimera` but for Basalt.
+XRT_MAYBE_UNUSED static inline struct xrt_pose
+euroc_device_correct_pose_from_basalt(struct xrt_pose pose)
+{
+    //! @todo Implement proper pose corrections for the original euroc datasets
+    //! @todo Allow to use different pose corrections depending on the device used to record
+    return pose;
+}
 
 /*
  *
@@ -200,13 +219,17 @@ android_device_compute_distortion(
 	return u_compute_distortion_cardboard(&d->cardboard.values[view], u, v, result);
 }
 
+DEBUG_GET_ONCE_LOG_OPTION(euroc_log, "EUROC_LOG", U_LOGGING_WARN)
 
 struct android_device *
-android_device_create()
+android_device_create(struct xrt_prober *xp)
 {
 	enum u_device_alloc_flags flags =
 	    (enum u_device_alloc_flags)(U_DEVICE_ALLOC_HMD | U_DEVICE_ALLOC_TRACKING_NONE);
 	struct android_device *d = U_DEVICE_ALLOCATE(struct android_device, flags, 1, 0);
+
+    d->pose = (struct xrt_pose){{0, 0, 0, 1}, {0, 0, 0}};
+    d->offset = (struct xrt_pose){{0, 0, 0, 1}, {0.2, 1.3, -0.5}};
 
 	d->base.name = XRT_DEVICE_GENERIC_HMD;
 	d->base.destroy = android_device_destroy;
@@ -295,6 +318,32 @@ android_device_create()
 	u_distortion_mesh_fill_in_compute(&d->base);
 
 	ANDROID_DEBUG(d, "Created device!");
+
+
+    struct xrt_device *xd = &d->base;
+    const char *dev_name;
+        xd->name = XRT_DEVICE_GENERIC_HMD;
+        xd->device_type = XRT_DEVICE_TYPE_HMD;
+        dev_name = "Euroc HMD";
+
+    snprintf(xd->str, XRT_DEVICE_NAME_LEN, "%s", dev_name);
+    snprintf(xd->serial, XRT_DEVICE_NAME_LEN, "%s", dev_name);
+
+    xd->tracking_origin = &d->tracking_origin;
+    xd->tracking_origin->type = XRT_TRACKING_TYPE_EXTERNAL_SLAM;
+    xd->tracking_origin->offset.orientation.w = 1.0f;
+    snprintf(xd->tracking_origin->name, XRT_TRACKING_NAME_LEN, "%s %s", dev_name, "SLAM Tracker");
+
+    u_var_add_pose(d, &d->pose, "pose");
+    u_var_add_pose(d, &d->offset, "offset");
+    u_var_add_pose(d, &d->tracking_origin.offset, "tracking offset");
+
+    bool tracked = xp->tracking->create_tracked_slam(xp->tracking, &d->slam) >= 0;
+    if (!tracked) {
+        ANDROID_WARN(d, "Unable to setup the SLAM tracker");
+        android_device_destroy(xd);
+        return NULL;
+    }
 
 	return d;
 }

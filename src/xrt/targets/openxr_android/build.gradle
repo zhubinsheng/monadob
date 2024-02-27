@@ -117,8 +117,8 @@ android {
         minSdkVersion project.sharedMinSdk
         targetSdkVersion project.sharedTargetSdk
 
-        versionCode androidGitVersion.code()
-        versionName androidGitVersion.name()
+        versionCode 1
+        versionName "1"
 
         println versionName
 
@@ -139,7 +139,7 @@ android {
                 cmake.arguments "-DPYTHON_EXECUTABLE=${project.pythonBinary}"
             }
         }
-
+        ndk { abiFilters 'arm64-v8a' }
         // Be sure to copy over licenses formatted as required.
         preBuild.dependsOn(copyLicenses)
 
@@ -152,6 +152,7 @@ android {
             minifyEnabled false
             // Gradle plugin produces proguard-android-optimize.txt from @Keep annotations
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
         }
     }
 

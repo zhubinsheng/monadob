@@ -80,12 +80,17 @@ target_include_directories(
 	xrt-external-openxr INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/openxr_includes
 	)
 
-# External VIT interface
+# External SLAM tracking
 if(XRT_FEATURE_SLAM)
-	add_library(xrt-external-vit INTERFACE)
+	add_library(xrt-external-slam STATIC slam_tracker/slam_tracker.hpp)
+	target_link_libraries(xrt-external-slam PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slam_tracker/libbasalt.so)
+
+	set_target_properties(xrt-external-slam PROPERTIES LINKER_LANGUAGE CXX)
 	target_include_directories(
-		xrt-external-vit INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/vit_includes
+		xrt-external-slam INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/slam_tracker
 		)
+	target_include_directories(xrt-external-slam SYSTEM INTERFACE ${SLAM_INCLUDE_DIRS})
+	target_link_libraries(xrt-external-slam INTERFACE ${SLAM_LDFLAGS})
 endif()
 
 # SDL
