@@ -21,6 +21,7 @@
 
 #include "util/u_logging.h"
 #include "util/u_distortion.h"
+#include "xrt/xrt_tracking.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +41,10 @@ struct android_device
 	ASensorEventQueue *event_queue;
 	struct u_cardboard_distortion cardboard;
 
+    struct xrt_tracked_slam *slam;
+    struct xrt_pose offset;
+    struct xrt_pose pose;
+    struct xrt_tracking_origin tracking_origin;
 
 	struct
 	{
@@ -51,9 +56,9 @@ struct android_device
 	enum u_logging_level log_level;
 };
 
-
+#include "xrt/xrt_prober.h"
 struct android_device *
-android_device_create();
+android_device_create(struct xrt_prober *xp);
 
 
 /*

@@ -89,6 +89,7 @@ if(EXISTS "${OpenCV_DIR}")
     ## Initiate the variable before the loop
     set(GLOBAL OpenCV_LIBS "")
     set(OpenCV_FOUND_TMP true)
+#    set(OPENCV_LIB_COMPONENTS core calib3d highgui imgproc imgcodecs features2d video)
 
     ## Loop over each components
     foreach(__CVLIB ${OPENCV_LIB_COMPONENTS})

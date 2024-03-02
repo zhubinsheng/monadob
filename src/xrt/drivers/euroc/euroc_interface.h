@@ -83,7 +83,7 @@ struct euroc_player_config
  * @ingroup drv_euroc
  */
 void
-euroc_player_fill_default_config_for(struct euroc_player_config *config, const char *path);
+euroc_player_fill_default_config_for(struct euroc_player_config *config);
 
 /*!
  * Create an euroc player from a path to a dataset.
@@ -91,7 +91,7 @@ euroc_player_fill_default_config_for(struct euroc_player_config *config, const c
  * @ingroup drv_euroc
  */
 struct xrt_fs *
-euroc_player_create(struct xrt_frame_context *xfctx, const char *path, struct euroc_player_config *config);
+euroc_player_create(struct xrt_frame_context *xfctx);
 
 /*!
  * Create a auto prober for the fake euroc device.

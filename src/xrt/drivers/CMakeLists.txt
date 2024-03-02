@@ -362,6 +362,11 @@ if(XRT_BUILD_DRIVER_ANDROID)
 	target_link_libraries(
 		drv_android
 		PRIVATE
+			camera2ndk
+			mediandk
+			-ljnigraphics
+			-landroid # Add this.
+
 			xrt-interfaces
 			aux_util
 			aux_os
@@ -449,8 +454,10 @@ if(XRT_BUILD_DRIVER_EUROC)
 		euroc/euroc_driver.h
 		euroc/euroc_device.c
 		euroc/euroc_interface.h
-		euroc/euroc_runner.c
-		)
+
+		android/YangCameraAndroid.cpp
+		android/YangCameraAndroid.h
+    )
 	target_link_libraries(
 		drv_euroc PRIVATE xrt-interfaces aux_util aux_tracking ${OpenCV_LIBRARIES}
 		)

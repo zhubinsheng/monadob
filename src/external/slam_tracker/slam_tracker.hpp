@@ -42,6 +42,7 @@ enum class pose_ext_type : int;
 
 /*!
  * @brief Standard pose type to communicate Monado with the external SLAM system
+  //定义了一个名为pose的结构体，用于在Monado和外部SLAM系统之间传递标准姿态信息
  */
 struct pose {
   std::int64_t timestamp;   //!< In same clock as input samples
@@ -67,6 +68,7 @@ struct rect {
 
 /*!
  * @brief IMU Sample type to pass around between programs
+ //用于在程序之间传递IMU（惯性测量单元）样本
  */
 struct imu_sample {
   std::int64_t timestamp; //!< In nanoseconds
@@ -81,6 +83,7 @@ struct imu_sample {
 /*!
  * @brief Image sample type to pass around between programs. It is expected that
  * any SLAM system takes OpenCV matrices as input.
+ * //定义了一个名为img_sample的结构体，用于在程序之间传递图像样本
  */
 struct img_sample {
   std::int64_t timestamp;
@@ -94,6 +97,7 @@ struct img_sample {
 
 /*!
  * @brief Parameters for creating the system pipeline.
+ //这个结构体用于配置系统流水线的行为，可以根据需要设置不同的参数值
  */
 struct slam_config {
   //! Path to a implementation-specific config file. If null, use defaults.
@@ -204,6 +208,7 @@ private:
  *
  *`distortion_model` and its corresponding `distortion` parameters are not
  * standardized in this struct to facilitate implementation prototyping.
+ * //关于包含了相机的校准参数
  */
 struct cam_calibration {
   int cam_index; //!< For multi-camera setups. For stereo 0 ~ left, 1 ~ right.
@@ -215,7 +220,7 @@ struct cam_calibration {
   std::vector<double> distortion{}; //!< Parameters for the distortion_model
   cv::Matx<double, 4, 4> t_imu_cam; //!< Transformation from IMU to camera
 };
-
+//用于存储惯性传感器的校准参数
 struct inertial_calibration {
   // Calibration intrinsics to apply to each raw measurement.
 
@@ -240,7 +245,7 @@ struct inertial_calibration {
 
   inertial_calibration() : transform(cv::Matx<double, 3, 3>::eye()) {}
 };
-
+//用来存储IMU设备的校准参数和相关信息:包括陀螺仪和加速度计
 struct imu_calibration {
   int imu_index;    //!< For multi-imu setups. Usually just 0.
   double frequency; //!< Samples per second
@@ -253,6 +258,11 @@ struct imu_calibration {
  *
  * Use it after constructor but before `start()` to write or overwrite camera
  * calibration data that might come from the system-specific config file.
+ * 这段代码是一个特性定义的示例，它定义了一个名为ADD_CAMERA_CALIBRATION的特性。
+ * 特性是一种用于控制程序行为的开关，可以在运行时启用或禁用。在这个示例中，
+ * 特性的名称是ADD_CAMERA_CALIBRATION，缩写为ACC。
+ * 它的版本号是1，表示这是第一个版本。特性的实现函数是cam_calibration，它是一个void类型的函数。
+ * 
  */
 DEFINE_FEATURE(ADD_CAMERA_CALIBRATION, ACC, 1, cam_calibration, void)
 
@@ -301,14 +311,14 @@ enum class pose_ext_type : int {
   TIMING = 1,
   FEATURES = 2,
 };
-
+//于扩展姿态信息。每个对象都可以链接到下一个对象，形成一个链表结构
 struct pose_extension {
   pose_ext_type type = pose_ext_type::UNDEFINED;
   std::shared_ptr<pose_extension> next = nullptr;
 
   pose_extension(pose_ext_type type) : type(type) {}
 };
-
+//该函数的作用是在链表中查找指定类型的 对象，并返回一个指向该对象的智能指针
 inline std::shared_ptr<pose_extension>
 pose::find_pose_extension(pose_ext_type required_type) const {
   std::shared_ptr<pose_extension> pe = next;
@@ -318,7 +328,7 @@ pose::find_pose_extension(pose_ext_type required_type) const {
   return pe;
 }
 
-// Timing pose extension
+// Timing pose extension用于存储姿势扩展的时间数据
 struct pose_ext_timing_data {
   //! Internal pipeline stage timestamps of interest when generating the pose.
   //! In steady clock ns. Must have the same number of elements in the same run.
@@ -334,7 +344,7 @@ struct pose_ext_timing : pose_extension, pose_ext_timing_data {
       : pose_extension{pose_ext_type::TIMING}, pose_ext_timing_data{petd} {}
 };
 
-// Features pose extension
+// Features pose extension扩展pose（姿态）的特征信息，通过features_per_cam来存储多个相机的特征数据。
 struct pose_ext_features_data {
   struct feature {
     std::int64_t id;
@@ -343,7 +353,7 @@ struct pose_ext_features_data {
     float depth;
   };
 
-  std::vector<std::vector<feature>> features_per_cam{};
+  std::vector<std::vector<feature>> features_per_cam{};//是一个二维向量，用于存储每个相机对应的特征
 };
 
 struct pose_ext_features : pose_extension, pose_ext_features_data {

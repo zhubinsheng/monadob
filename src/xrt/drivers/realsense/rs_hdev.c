@@ -1096,33 +1096,6 @@ rs_source_create(struct xrt_frame_context *xfctx, int device_idx)
 	rs->in_sinks.cams[1] = &rs->right_sink;
 	rs->in_sinks.imu = &rs->imu_sink;
 
-	// Prepare UI
-	u_sink_debug_init(&rs->ui_left_sink);
-	u_sink_debug_init(&rs->ui_right_sink);
-	m_ff_vec3_f32_alloc(&rs->gyro_ff, 1000);
-	m_ff_vec3_f32_alloc(&rs->accel_ff, 1000);
-	rs->ui_autoexposure = rs->video_autoexposure;
-	float estep = 50;
-	float shutter_delay = 1500; // Approximated value, obtained by playing with the realsense-viewer
-	float emax = 1000 * 1000 / fps - fmod(1000 * 1000 / fps, estep) - shutter_delay;
-	rs->ui_exposure = (struct u_var_draggable_f32){.val = rs->video_exposure, .min = 0, .max = emax, .step = estep};
-	rs->ui_gain = (struct u_var_draggable_f32){.val = rs->video_gain, .min = 16, .max = 248, .step = 1};
-	rs->ui_btn_apply = (struct u_var_button){.cb = rs_source_apply_changes_ctn_cb, .ptr = rs};
-
-	// Setup UI
-	u_var_add_root(rs, "RealSense Source", false);
-	u_var_add_log_level(rs, &rs->log_level, "Log Level");
-	u_var_add_ro_ff_vec3_f32(rs, rs->gyro_ff, "Gyroscope");
-	u_var_add_ro_ff_vec3_f32(rs, rs->accel_ff, "Accelerometer");
-	u_var_add_sink_debug(rs, &rs->ui_left_sink, "Left Camera");
-	u_var_add_sink_debug(rs, &rs->ui_right_sink, "Right Camera");
-	if (rs->video_change_exposure) {
-		u_var_add_gui_header(rs, NULL, "Stream options");
-		u_var_add_bool(rs, &rs->ui_autoexposure, "Enable autoexposure");
-		u_var_add_draggable_f32(rs, &rs->ui_exposure, "Exposure (usec)");
-		u_var_add_draggable_f32(rs, &rs->ui_gain, "Gain");
-		u_var_add_button(rs, &rs->ui_btn_apply, "Apply");
-	}
 
 	// Setup node
 	struct xrt_frame_node *xfn = &rs->node;

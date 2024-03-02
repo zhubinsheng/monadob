@@ -89,7 +89,8 @@ find_package(HIDAPI MODULE)
 find_package(bluetooth MODULE)
 find_package(OpenHMD MODULE)
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk/native/jni/OpenCVConfig.cmake")
+#include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk/native/jni/OpenCVConfig.cmake")
+set(OpenCV_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk/native/jni/")
 
 find_package(
 	OpenCV
@@ -101,9 +102,8 @@ find_package(
 		imgcodecs
 		features2d
 		video
-		CONFIG
+		REQUIRED
 	)
-set(OpenCV_FOUND 1)
 
 if(OpenCV_FOUND)
 	message(STATUS "OpenCV_FOUND")
@@ -194,6 +194,7 @@ if(XRT_HAVE_LINUX OR MINGW)
 	pkg_check_modules(SURVIVE IMPORTED_TARGET survive)
 endif()
 
+set(basalt_FOUND 1)
 # Find a external SLAM implementation
 set(EXTERNAL_SLAM_SYSTEMS basalt)
 foreach(slam_system IN LISTS EXTERNAL_SLAM_SYSTEMS)

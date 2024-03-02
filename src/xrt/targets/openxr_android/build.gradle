@@ -152,6 +152,7 @@ android {
             minifyEnabled false
             // Gradle plugin produces proguard-android-optimize.txt from @Keep annotations
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
         }
     }
 

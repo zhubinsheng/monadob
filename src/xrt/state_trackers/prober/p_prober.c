@@ -1232,11 +1232,13 @@ p_open_video_device(struct xrt_prober *xp,
 #endif
 
 #if defined(XRT_BUILD_DRIVER_EUROC)
-	const char *euroc_path = debug_get_option_euroc_path();
-	if (euroc_path != NULL) {
-		*out_xfs = euroc_player_create(xfctx, euroc_path, NULL); // Euroc will exit if it can't be created
+//	const char *euroc_path = debug_get_option_euroc_path();
+//	if (euroc_path != NULL) {
+        U_LOG_W("initialize euroc_player_create will");
+
+		*out_xfs = euroc_player_create(xfctx); // Euroc will exit if it can't be created
 		return 0;
-	}
+//	}
 #endif
 
 #if defined(XRT_BUILD_DRIVER_REALSENSE)
