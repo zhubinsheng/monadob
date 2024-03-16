@@ -83,7 +83,12 @@ target_include_directories(
 # External SLAM tracking
 if(XRT_FEATURE_SLAM)
 	add_library(xrt-external-slam STATIC slam_tracker/slam_tracker.hpp)
+
+	# 默认情况下，所有库会被优化，通过这行命令可以关闭对 libbasalt.so 库的优化
+#	set_target_properties(xrt-external-slam PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+
 	target_link_libraries(xrt-external-slam PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slam_tracker/libbasalt.so)
+#	target_link_libraries(xrt-external-slam PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slam_tracker/libtbb.so)
 
 	set_target_properties(xrt-external-slam PROPERTIES LINKER_LANGUAGE CXX)
 	target_include_directories(

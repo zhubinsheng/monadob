@@ -14,6 +14,9 @@ if(POLICY CMP0072)
 	cmake_policy(SET CMP0072 NEW)
 endif()
 
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
+
 set(_default_absolute ON)
 if(WIN32)
 	set(_default_absolute OFF)

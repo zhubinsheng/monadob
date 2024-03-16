@@ -71,14 +71,14 @@
 DEBUG_GET_ONCE_LOG_OPTION(slam_log, "SLAM_LOG", U_LOGGING_INFO)
 DEBUG_GET_ONCE_OPTION(slam_config, "SLAM_CONFIG", nullptr)
 DEBUG_GET_ONCE_BOOL_OPTION(slam_ui, "SLAM_UI", false)
-DEBUG_GET_ONCE_BOOL_OPTION(slam_submit_from_start, "SLAM_SUBMIT_FROM_START", false)
+DEBUG_GET_ONCE_BOOL_OPTION(slam_submit_from_start, "SLAM_SUBMIT_FROM_START", true)
 DEBUG_GET_ONCE_NUM_OPTION(slam_openvr_groundtruth_device, "SLAM_OPENVR_GROUNDTRUTH_DEVICE", 0)
 DEBUG_GET_ONCE_NUM_OPTION(slam_prediction_type, "SLAM_PREDICTION_TYPE", long(SLAM_PRED_IP_IO_IA_IL))
 DEBUG_GET_ONCE_BOOL_OPTION(slam_write_csvs, "SLAM_WRITE_CSVS", false)
 DEBUG_GET_ONCE_OPTION(slam_csv_path, "SLAM_CSV_PATH", "evaluation/")
 DEBUG_GET_ONCE_BOOL_OPTION(slam_timing_stat, "SLAM_TIMING_STAT", true)
 DEBUG_GET_ONCE_BOOL_OPTION(slam_features_stat, "SLAM_FEATURES_STAT", true)
-DEBUG_GET_ONCE_NUM_OPTION(slam_cam_count, "SLAM_CAM_COUNT", 1)
+DEBUG_GET_ONCE_NUM_OPTION(slam_cam_count, "SLAM_CAM_COUNT", 2)
 
 //! Namespace for the interface to the external SLAM tracking system
 namespace xrt::auxiliary::tracking::slam {
@@ -1305,12 +1305,14 @@ extern "C" void
 t_slam_receive_imu(struct xrt_imu_sink *sink, struct xrt_imu_sample *s)
 {
 	XRT_TRACE_MARKER();
+    U_LOG_W("t_slam_receive_imu  1");
 
 	auto &t = *container_of(sink, TrackerSlam, imu_sink);
 
 	timepoint_ns ts = s->timestamp_ns;
 	xrt_vec3_f64 a = s->accel_m_s2;
 	xrt_vec3_f64 w = s->gyro_rad_secs;
+    U_LOG_W("t_slam_receive_imu  2");
 
 	timepoint_ns now = (timepoint_ns)os_monotonic_get_ns();
 	SLAM_TRACE("[%ld] imu t=%ld  a=[%f,%f,%f] w=[%f,%f,%f]", now, ts, a.x, a.y, a.z, w.x, w.y, w.z);
@@ -1320,6 +1322,7 @@ t_slam_receive_imu(struct xrt_imu_sink *sink, struct xrt_imu_sample *s)
 		return;
 	}
 	t.last_imu_ts = ts;
+    U_LOG_W("t_slam_receive_imu  3");
 
 	//! @todo There are many conversions like these between xrt and
 	//! slam_tracker.hpp types. Implement a casting mechanism to avoid copies.
@@ -1327,8 +1330,10 @@ t_slam_receive_imu(struct xrt_imu_sink *sink, struct xrt_imu_sample *s)
 	if (t.submit) {
 		t.slam->push_imu_sample(sample);
 	}
+    U_LOG_W("t_slam_receive_imu  4");
 
 	xrt_sink_push_imu(t.euroc_recorder->imu, s);
+    U_LOG_W("t_slam_receive_imu  5");
 
 	struct xrt_vec3 gyro = {(float)w.x, (float)w.y, (float)w.z};
 	struct xrt_vec3 accel = {(float)a.x, (float)a.y, (float)a.z};
@@ -1342,12 +1347,14 @@ t_slam_receive_imu(struct xrt_imu_sink *sink, struct xrt_imu_sample *s)
 static void
 receive_frame(TrackerSlam &t, struct xrt_frame *frame, int cam_index)
 {
+    U_LOG_W("SLAM receive_frame  1");
 	XRT_TRACE_MARKER();
 
 	if (cam_index == t.cam_count - 1) {
 		flush_poses(t); // Useful to flush SLAM poses when no openxr app is open
 	}
 	SLAM_DASSERT(t.last_cam_ts[0] != INT64_MIN || cam_index == 0, "First frame was not a cam0 frame");
+    U_LOG_W("SLAM receive_frame  3");
 
 	// Check monotonically increasing timestamps
 	timepoint_ns &last_ts = t.last_cam_ts[cam_index];
@@ -1357,6 +1364,7 @@ receive_frame(TrackerSlam &t, struct xrt_frame *frame, int cam_index)
 		SLAM_WARN("Frame (%ld) is older than last (%ld)", ts, last_ts);
 	}
 	last_ts = ts;
+    U_LOG_W("SLAM receive_frame  4");
 
 	// Construct and send the image sample
 	cv::Mat img = t.cv_wrapper->wrap(frame);
@@ -1365,6 +1373,8 @@ receive_frame(TrackerSlam &t, struct xrt_frame *frame, int cam_index)
 	if (t.submit) {
 		XRT_TRACE_IDENT(slam_push);
 		t.slam->push_frame(sample);
+        U_LOG_W("SLAM receive_frame  5");
+
 	}
 }
 
@@ -1373,7 +1383,6 @@ receive_frame(TrackerSlam &t, struct xrt_frame *frame, int cam_index)
 	{                                                                                                              \
 		auto &t = *container_of(sink, TrackerSlam, cam_sinks[cam_id]);                                         \
 		receive_frame(t, frame, cam_id);                                                                       \
-		u_sink_debug_push_frame(&t.ui_sink[cam_id], frame);                                                    \
 		xrt_sink_push_frame(t.euroc_recorder->cams[cam_id], frame);                                            \
 	}
 
@@ -1439,6 +1448,8 @@ t_slam_node_destroy(struct xrt_frame_node *node)
 extern "C" void *
 t_slam_run(void *ptr)
 {
+    U_LOG_W("SLAM t_slam_run started 1");
+
 	auto &t = *(TrackerSlam *)ptr;
 	SLAM_DEBUG("SLAM tracker starting");
 	t.slam->start();
@@ -1453,6 +1464,7 @@ t_slam_start(struct xrt_tracked_slam *xts)
 	int ret = os_thread_helper_start(&t.oth, t_slam_run, &t);
 	SLAM_ASSERT(ret == 0, "Unable to start thread");
 	SLAM_DEBUG("SLAM tracker started");
+    U_LOG_W("SLAM tracker started 1");
 	return ret;
 }
 
@@ -1502,24 +1514,29 @@ t_slam_create(struct xrt_frame_context *xfctx,
 	U_LOG_IFL_I(log_level, "Initializing compatible external SLAM system.");
 
 	// Check the user has provided a SLAM_CONFIG file
-	const char *config_file = config->slam_config;
-	bool some_calib = config->slam_calib != nullptr;
-	if (!config_file && !some_calib) {
-		U_LOG_IFL_W(log_level, "Unable to determine sensor calibration, did you forget to set SLAM_CONFIG?");
-		return -1;
-	}
+	const char *config_file = "/storage/emulated/0/Android/data/org.freedesktop.monado.openxr_runtime.out_of_process/files/euroc.txt";
 
 	auto &t = *(new TrackerSlam{});
 	t.log_level = log_level;
 	t.cv_wrapper = new MatFrame();
+    U_LOG_IFL_I(log_level, "Initializing  SLAM 1.");
 
 	t.base.get_tracked_pose = t_slam_get_tracked_pose;
 
 	slam_config system_config = {};
-	system_config.config_file = config_file ? make_shared<string>(config_file) : nullptr;
+	system_config.config_file = make_shared<string>(config_file);
 	system_config.cam_count = config->cam_count;
 	system_config.show_ui = config->slam_ui;
+
+    U_LOG_IFL_I(log_level, "Initializing  SLAM 12.");
+    FILE *calib_file = fopen(config_file, "rb");
+    if (calib_file == nullptr) {
+        U_LOG_IFL_I(log_level, "Unable to open calibration file: '%s'", config_file);
+        return false;
+    }
+
 	t.slam = new slam_tracker{system_config};
+    U_LOG_IFL_I(log_level, "Initializing  SLAM 2.");
 
 	if (!config_file) {
 		SLAM_INFO("Using calibration from driver and default pipeline settings");
@@ -1529,13 +1546,17 @@ t_slam_create(struct xrt_frame_context *xfctx,
 	}
 
 	t.slam->initialize();
+    U_LOG_IFL_I(log_level, "Initializing  SLAM 3.");
 
 	SLAM_ASSERT(t_slam_receive_cam[ARRAY_SIZE(t_slam_receive_cam) - 1] != nullptr, "See `cam_sink_push` docs");
+    U_LOG_IFL_I(log_level,"SLAM tracker created0");
+
 	t.sinks.cam_count = config->cam_count;
 	for (int i = 0; i < XRT_TRACKING_MAX_SLAM_CAMS; i++) {
 		t.cam_sinks[i].push_frame = t_slam_receive_cam[i];
 		t.sinks.cams[i] = &t.cam_sinks[i];
 	}
+    U_LOG_IFL_I(log_level,"SLAM tracker created1");
 
 	t.imu_sink.push_imu = t_slam_receive_imu;
 	t.sinks.imu = &t.imu_sink;
@@ -1555,6 +1576,7 @@ t_slam_create(struct xrt_frame_context *xfctx,
 	xrt_frame_context_add(xfctx, &t.node);
 
 	t.euroc_recorder = euroc_recorder_create(xfctx, NULL, t.cam_count, false);
+    U_LOG_IFL_I(log_level,"SLAM tracker created2");
 
 	t.last_imu_ts = INT64_MIN;
 	t.last_cam_ts = vector<timepoint_ns>(t.cam_count, INT64_MIN);
@@ -1567,6 +1589,7 @@ t_slam_create(struct xrt_frame_context *xfctx,
 	t.gt.trajectory = new Trajectory{};
 
 	// Setup timing extension
+    U_LOG_IFL_I(log_level,"SLAM tracker created3");
 
 	// Probe for timing extension.
 	bool has_timing_extension = t.slam->supports_feature(F_ENABLE_POSE_EXT_TIMING);
@@ -1586,6 +1609,7 @@ t_slam_create(struct xrt_frame_context *xfctx,
 		t.timing.columns.insert(t.timing.columns.begin() + 1, cols.begin(), cols.end());
 		t.timing.ext_enabled = enable_timing_extension;
 	}
+    U_LOG_IFL_I(log_level,"SLAM tracker created4");
 
 	// Setup features extension
 	bool has_features_extension = t.slam->supports_feature(F_ENABLE_POSE_EXT_FEATURES);
@@ -1599,6 +1623,7 @@ t_slam_create(struct xrt_frame_context *xfctx,
 
 		t.features.ext_enabled = enable_features_extension;
 	}
+    U_LOG_IFL_I(log_level,"SLAM tracker created5");
 
 	// Setup CSV files
 	bool write_csvs = config->write_csvs;
@@ -1610,6 +1635,7 @@ t_slam_create(struct xrt_frame_context *xfctx,
 	t.filt_traj_writer = new TrajectoryWriter(dir, "filtering.csv", write_csvs);
 
 	setup_ui(t);
+    U_LOG_IFL_I(log_level,"SLAM tracker created6");
 
 	// Setup OpenVR groundtruth tracker
 	if (config->openvr_groundtruth_device > 0) {
@@ -1624,6 +1650,6 @@ t_slam_create(struct xrt_frame_context *xfctx,
 	*out_xts = &t.base;
 	*out_sink = &t.sinks;
 
-	SLAM_DEBUG("SLAM tracker created");
+    U_LOG_IFL_I(log_level,"SLAM tracker created7");
 	return 0;
 }

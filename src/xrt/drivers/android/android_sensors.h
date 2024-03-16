@@ -50,7 +50,7 @@ struct android_device
 	{
 		//! Lock for last and fusion.
 		struct os_mutex lock;
-		struct m_imu_3dof fusion;
+//		struct m_imu_3dof fusion;
 	};
 
 	enum u_logging_level log_level;

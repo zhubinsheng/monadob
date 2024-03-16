@@ -227,8 +227,8 @@ euroc_player_user_skip(struct euroc_player *ep)
 static void
 euroc_player_fill_dataset_info(const char *path, euroc_player_dataset_info *dataset)
 {
-	dataset->cam_count = (int)1;
-	dataset->is_colored = true;
+	dataset->cam_count = (int)2;
+	dataset->is_colored = false;
 	dataset->has_gt = false;
 	dataset->width = 720;
 	dataset->height = 1280;
@@ -318,38 +318,7 @@ euroc_player_load_next_frame(struct euroc_player *ep, int cam_index, struct xrt_
 static void
 euroc_player_push_next_frame(struct euroc_player *ep)
 {
-	int cam_count = ep->playback.cam_count;
 
-	vector<xrt_frame *> xfs(cam_count, nullptr);
-	for (int i = 0; i < cam_count; i++) {
-		euroc_player_load_next_frame(ep, i, xfs[i]);
-	}
-
-	// TODO: Some SLAM systems expect synced frames, but that's not an
-	// EuRoC requirement. Adapt to work with unsynced datasets too.
-	for (int i = 1; i < cam_count; i++) {
-		EUROC_ASSERT(xfs[i - 1]->timestamp == xfs[i]->timestamp, "Unsynced frames");
-	}
-
-	ep->img_seq++;
-
-	for (int i = 0; i < cam_count; i++) {
-		xrt_sink_push_frame(ep->in_sinks.cams[i], xfs[i]);
-	}
-
-	for (int i = 0; i < cam_count; i++) {
-		xrt_frame_reference(&xfs[i], NULL);
-	}
-
-	size_t fcount = ep->imgs->at(0).size();
-	(void)snprintf(ep->progress_text, sizeof(ep->progress_text),
-	               "Playback %.2f%% - Frame %" PRId64 "/%" PRId64 " - IMU %" PRId64 "/%" PRId64,
-	               float(ep->img_seq) / float(fcount) * 100, ep->img_seq, fcount, ep->imu_seq, ep->imus->size());
-
-	if (ep->playback.print_progress) {
-		printf("%s\r", ep->progress_text);
-		(void)fflush(stdout);
-	}
 }
 
 static void
@@ -450,7 +419,154 @@ euroc_player_stream_samples(struct euroc_player *ep)
 		push_next_sample(ep);
 	}
 }
+static bool started = false;
 
+static void *thisptr;
+
+static void trlSlamCallback2(struct xrt_vec3 gyro, struct xrt_vec3 accel){
+    if (!started){
+        return;
+    }
+    xrt_imu_sample *sample = new xrt_imu_sample;
+    sample->timestamp_ns = os_monotonic_get_ns();
+    sample->accel_m_s2.x = (double )accel.x;
+    sample->accel_m_s2.y = (double )accel.y;
+    sample->accel_m_s2.z = (double )accel.z;
+
+    sample->gyro_rad_secs.x = (double )gyro.x;
+    sample->gyro_rad_secs.y = (double )gyro.y;
+    sample->gyro_rad_secs.z = (double )gyro.z;
+
+    struct xrt_fs *xfs00 = (struct xrt_fs *)thisptr;
+    struct euroc_player *ep = euroc_player(xfs00);
+
+    U_LOG_W("xrt_sink_push_imu  will");
+
+    xrt_sink_push_imu(ep->in_sinks.imu, sample);
+}
+
+void
+destroyFrame(struct xrt_frame *)
+{
+    U_LOG_W("destroyFrame  will");
+
+}
+
+using Pixel = unsigned char;  // 用8位无符号整数表示像素值
+// 假设YUV_420_888图像的宽度和高度分别是width和height
+int width = 1280;
+int height = 720;
+static std::vector<Pixel> raw8_image(width * height);  // RAW8图像的大小为宽*高
+
+static void trlSlamCallback(int planeIdx,
+        /*out*/uint8_t **data, /*out*/int *dataLength) {
+    static int cctime;
+    cctime++;
+    U_LOG_W("trlSlamCallback plane%d length%d cctime%d", planeIdx, dataLength, cctime);
+
+    started = true;
+    std::copy(*data, *data + width * height, raw8_image.begin());
+    uint64_t last_pause_ts = os_monotonic_get_ns();
+    U_LOG_W("memcpy 1 will last_pause_ts %ld", last_pause_ts);
+
+    struct xrt_fs *xfs00 = (struct xrt_fs *)thisptr;
+    struct euroc_player *ep = euroc_player(xfs00);
+
+    int cam_count = ep->playback.cam_count;
+    U_LOG_W("memcpy 1 will cam_count %d", cam_count);
+
+    vector<xrt_frame *> xfs(cam_count, nullptr);
+    for (int i = 0; i < cam_count; i++) {
+        U_LOG_W("memcpy start i %d", i);
+
+//        euroc_player_load_next_frame(ep, i, xfs[i]);
+        struct xrt_frame *&xf = xfs[i];
+        xf = new xrt_frame();
+
+        uint32_t width = 1280;
+        uint32_t height = 720;
+        size_t stride = 1280;
+        size_t size = stride * height;
+        U_LOG_W("memcpy start raw8_image.size() %zu", raw8_image.size());
+
+        xf->reference.count = 1;
+        xf->destroy = destroyFrame;
+        U_LOG_W("memcpy start size.size() %zu", size);
+        xf->data = raw8_image.data();
+
+//        memcpy(, raw8_image.data(), raw8_image.size());
+
+        xf->size = raw8_image.size();
+        xf->format = XRT_FORMAT_L8;
+        xf->width = width;
+        xf->height = height;
+        xf->stride = stride;
+
+        // Params
+        xf->timestamp = last_pause_ts;
+        xf->stereo_format = XRT_STEREO_FORMAT_NONE;
+
+
+        U_LOG_W("memcpy 12 will");
+
+        xf->owner = ep;
+
+        U_LOG_W("memcpy 55 will");
+
+        xf->source_timestamp = last_pause_ts;
+
+        U_LOG_W("memcpy 66 will");
+
+        xf->source_sequence = ep->img_seq;
+        xf->source_id = ep->base.source_id;
+        U_LOG_W("memcpy 2 will");
+
+
+    }
+
+    // TODO: Some SLAM systems expect synced frames, but that's not an
+    // EuRoC requirement. Adapt to work with unsynced datasets too.
+    for (int i = 1; i < cam_count; i++) {
+        EUROC_ASSERT(xfs[i - 1]->timestamp == xfs[i]->timestamp, "Unsynced frames");
+    }
+    U_LOG_W("euroc_player_stream 1 will000");
+
+    ep->img_seq++;
+    U_LOG_W("euroc_player_stream 1 will111");
+
+    for (int i = 0; i < cam_count; i++) {
+        U_LOG_W("euroc_player_stream 1 will1112");
+        xrt_sink_push_frame(ep->in_sinks.cams[i], xfs[i]);
+    }
+    U_LOG_W("euroc_player_stream 1 will112");
+
+    for (int i = 0; i < cam_count; i++) {
+//        xrt_frame_reference(&xfs[i], NULL);
+    }
+    U_LOG_W("euroc_player_stream 1 will113");
+
+//    size_t fcount = ep->imgs->at(0).size();
+//    (void)snprintf(ep->progress_text, sizeof(ep->progress_text),
+//                   "Playback %.2f%% - Frame %" PRId64 "/%" PRId64 " - IMU %" PRId64 "/%" PRId64,
+//                   float(ep->img_seq) / float(fcount) * 100, ep->img_seq, fcount, ep->imu_seq, ep->imus->size());
+    U_LOG_W("euroc_player_stream 1 will114 ep->img_seq%lu", ep->img_seq);
+
+//    if (ep->playback.print_progress) {
+//        printf("%s\r", ep->progress_text);
+//        (void)fflush(stdout);
+//    }
+
+
+    if (cctime == 10) {
+        // 将RAW8图像数据写入文件
+        std::ofstream raw8_file(
+                "/storage/emulated/0/Android/data/org.freedesktop.monado.openxr_runtime.out_of_process/files/raw8_image.raw",
+                std::ios::binary);
+        raw8_file.write(reinterpret_cast<const char *>(raw8_image.data()), raw8_image.size());
+        raw8_file.close();
+    }
+
+}
 
 
 static void *
@@ -458,14 +574,17 @@ euroc_player_stream(void *ptr)
 {
 	struct xrt_fs *xfs = (struct xrt_fs *)ptr;
 	struct euroc_player *ep = euroc_player(xfs);
-	EUROC_INFO(ep, "Starting euroc playback");
+    U_LOG_W("euroc_player_stream 1 will");
+    //2032 1536
+    //2016 1508
+    thisptr=ptr;
+    //3440 2448
+    YangCameraAndroid::getInstance().setSize(1280, 720);
+    void* ptr2 = reinterpret_cast<void*>(trlSlamCallback);
+    YangCameraAndroid::getInstance().setUser(ptr2);
+    YangCameraAndroid::getInstance().initCamera();
 
-    YangCameraAndroid yangCameraAndroid;
-    yangCameraAndroid.setSize(720, 1290);
-//    yangCameraAndroid.setUser(ep);
-    yangCameraAndroid.initCamera();
-
-	euroc_player_preload(ep);
+	/*euroc_player_preload(ep);
 	ep->base_ts = MIN(ep->imgs->at(0).at(0).first, ep->imus->at(0).timestamp_ns);
 	ep->start_ts = os_monotonic_get_ts();
 	euroc_player_user_skip(ep);
@@ -492,7 +611,7 @@ euroc_player_stream(void *ptr)
 	serve_imgs.get();
 	serve_imus.get();
 
-	ep->is_running = false;
+	ep->is_running = false;*/
 
 	EUROC_INFO(ep, "Euroc dataset playback finished");
 //	euroc_player_set_ui_state(ep, STREAM_ENDED);
@@ -537,10 +656,11 @@ euroc_player_configure_capture(struct xrt_fs *xfs, struct xrt_fs_capture_paramet
 #define DEFINE_RECEIVE_CAM(cam_id)                                                                                     \
 	static void receive_cam##cam_id(struct xrt_frame_sink *sink, struct xrt_frame *xf)                             \
 	{                                                                                                              \
-		struct euroc_player *ep = container_of(sink, struct euroc_player, cam_sinks[cam_id]);                  \
+		struct euroc_player *ep = container_of(sink, struct euroc_player, cam_sinks[cam_id]);                                \
+        U_LOG_W("receive_cam will 1");                                              \
 		EUROC_TRACE(ep, "cam%d img t=%ld source_t=%ld", cam_id, xf->timestamp, xf->source_timestamp);          \
-		u_sink_debug_push_frame(&ep->ui_cam_sinks[cam_id], xf);                                                \
-		if (ep->out_sinks.cams[cam_id]) {                                                                      \
+		if (ep->out_sinks.cams[cam_id]) {                                                                                    \
+            U_LOG_W("receive_cam will 2");                                              \
 			xrt_sink_push_frame(ep->out_sinks.cams[cam_id], xf);                                           \
 		}                                                                                                      \
 	}
@@ -565,20 +685,25 @@ static void
 receive_imu_sample(struct xrt_imu_sink *sink, struct xrt_imu_sample *s)
 {
 	struct euroc_player *ep = container_of(sink, struct euroc_player, imu_sink);
+    U_LOG_W("receive_imu_sample  1");
 
 	timepoint_ns ts = s->timestamp_ns;
 	xrt_vec3_f64 a = s->accel_m_s2;
 	xrt_vec3_f64 w = s->gyro_rad_secs;
+    U_LOG_W("receive_imu_sample  2");
 
 	// UI log
-	const xrt_vec3 gyro{(float)w.x, (float)w.y, (float)w.z};
-	const xrt_vec3 accel{(float)a.x, (float)a.y, (float)a.z};
-	m_ff_vec3_f32_push(ep->gyro_ff, &gyro, ts);
-	m_ff_vec3_f32_push(ep->accel_ff, &accel, ts);
+//	const xrt_vec3 gyro{(float)w.x, (float)w.y, (float)w.z};
+//	const xrt_vec3 accel{(float)a.x, (float)a.y, (float)a.z};
+//	m_ff_vec3_f32_push(ep->gyro_ff, &gyro, ts);
+//	m_ff_vec3_f32_push(ep->accel_ff, &accel, ts);
+    U_LOG_W("receive_imu_sample  3");
 
 	// Trace log
 	EUROC_TRACE(ep, "imu t=%ld ax=%f ay=%f az=%f wx=%f wy=%f wz=%f", ts, a.x, a.y, a.z, w.x, w.y, w.z);
 	if (ep->out_sinks.imu) {
+        U_LOG_W("receive_imu_sample  4");
+
 		xrt_sink_push_imu(ep->out_sinks.imu, s);
 	}
 }
@@ -597,14 +722,16 @@ euroc_player_stream_start(struct xrt_fs *xfs,
 
 	struct euroc_player *ep = euroc_player(xfs);
 
+    U_LOG_W("euroc_player_stream_start 1 will capture_type%d %d", capture_type, (ep->out_sinks.cams[0] == NULL));
+
 	if (xs == NULL && capture_type == XRT_FS_CAPTURE_TYPE_TRACKING) {
 		EUROC_INFO(ep, "Starting Euroc Player in tracking mode");
 		if (ep->out_sinks.cams[0] == NULL) {
 			EUROC_WARN(ep, "No cam0 sink provided, will keep running but tracking is unlikely to work");
 		}
-		if (ep->playback.play_from_start) {
+
 			euroc_player_start_btn_cb(ep);
-		}
+
 	} else if (xs != NULL && capture_type == XRT_FS_CAPTURE_TYPE_CALIBRATION) {
 		EUROC_INFO(ep, "Starting Euroc Player in calibration mode, will stream only cam0 frames right away");
 		ep->out_sinks.cams[0] = xs;
@@ -613,6 +740,7 @@ euroc_player_stream_start(struct xrt_fs *xfs,
 		EUROC_ASSERT(false, "Unsupported stream configuration xs=%p capture_type=%d", (void *)xs, capture_type);
 		return false;
 	}
+    U_LOG_W("is_running 1 will");
 
 	ep->is_running = true;
 	return ep->is_running;
@@ -715,6 +843,7 @@ euroc_player_start_btn_cb(void *ptr)
 	ret |= os_thread_helper_init(&ep->play_thread);
 	ret |= os_thread_helper_start(&ep->play_thread, euroc_player_stream, ep);
 	EUROC_ASSERT(ret == 0, "Thread launch failure");
+    U_LOG_W("euroc_player_start_btn_cb 1 will");
 
 //	euroc_player_set_ui_state(ep, STREAM_PLAYING);
 }
@@ -770,16 +899,23 @@ euroc_player_fill_default_config_for(struct euroc_player_config *config)
 
 }
 
+#include <functional>
+
 // Euroc driver creation
+
+
+extern "C" {
+    void MyCPlusPlusFunction(struct xrt_vec3 gyro, struct xrt_vec3 accel) {
+        // C++ 代码
+        U_LOG_W("MyCPlusPlusFunction gyro%f_%f accel%f_%f", gyro.x, gyro.y, accel.x, accel.y);
+        trlSlamCallback2(gyro, accel);
+    }
+}
 
 extern "C" struct xrt_fs *
 euroc_player_create(struct xrt_frame_context *xfctx)
 {
     //only test
-    YangCameraAndroid yangCameraAndroid;
-    yangCameraAndroid.setSize(720, 1290);
-//    yangCameraAndroid.setUser(ep);
-    yangCameraAndroid.initCamera();
 
     struct euroc_player_config *config = nullptr;
 	struct euroc_player *ep = U_TYPED_CALLOC(struct euroc_player);

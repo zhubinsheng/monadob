@@ -11,8 +11,12 @@
 #include <EGL/egl.h>
 class YangCameraAndroid{
 public:
-    YangCameraAndroid(/*ANativeWindow* pwindow*/);
-    ~YangCameraAndroid();
+    static YangCameraAndroid& getInstance() {
+        static YangCameraAndroid instance;
+        return instance;
+    }
+
+
     void setSize(int width,int height);
     void setUser(void* user);
     void initCamera();
@@ -20,6 +24,10 @@ public:
     void closeCamera(void);
 
 private:
+
+    YangCameraAndroid(/*ANativeWindow* pwindow*/);
+    ~YangCameraAndroid();
+
     int32_t m_width;
     int32_t m_height;
     void* m_user;

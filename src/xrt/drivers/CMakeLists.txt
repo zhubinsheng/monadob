@@ -372,6 +372,7 @@ if(XRT_BUILD_DRIVER_ANDROID)
 			aux_os
 			aux_android
 			${ANDROID_LIBRARY}
+			drv_euroc
 		)
 	list(APPEND ENABLED_DRIVERS android)
 endif()

@@ -102,32 +102,38 @@ void printCamProps(ACameraManager *cameraManager, const char *id)
 
 #include <fcntl.h>
 
+typedef void (*euroc_player)(int planeIdx,
+        /*out*/uint8_t** data, /*out*/int* dataLength);
+
  void imageCallback(void* context, AImageReader* reader)
   {
 	  static int cctime;
 	  cctime++;
 	 AImage *image = nullptr;
-//      euroc_player* ch = (euroc_player*)context;
 	 media_status_t status = AImageReader_acquireNextImage(reader, &image);
 
      uint8_t *data = nullptr;
      int len = 0;
-     AImage_getPlaneData(image, 0, &data, &len);
-//		 ch->putBufferAndroid(0, data, len);
+     AImage_getPlaneData(image, 0, &data, &len);//yyyyyyyyyyyyyyyyyyyyyyyyyy
+
+    // 转换回原来的函数指针类型，并调用：
+     euroc_player func = reinterpret_cast<euroc_player>(context);
+     func(0, &data, &len);
+
      LOGE("imageCallbacklen=%d  cctime=%d", len, cctime);
 
-//     if(cctime == 10){
-//         char buf[FILENAME_MAX] = "/sdcard/c906.jpg";
-//
-//         int file_fd = open(buf, O_RDWR | O_CREAT, 0644);
-//         if (file_fd >= 0 && len > 0) {
-//             ssize_t written_len = write(file_fd, data, len);
-//             LOGE("written number of bytes %zd to %s", written_len, buf);
-//             close(file_fd);
-//         } else {
-//             LOGE("failed to open file %s to dump image", buf);
-//         }
-//     }
+     if(cctime == 10){
+         char buf[FILENAME_MAX] = "/storage/emulated/0/Android/data/org.freedesktop.monado.openxr_runtime.out_of_process/files/c906.yuv420888";
+
+         int file_fd = open(buf, O_RDWR | O_CREAT, 0644);
+         if (file_fd >= 0 && len > 0) {
+             ssize_t written_len = write(file_fd, data, len);
+             LOGE("written number of bytes %zd to %s", written_len, buf);
+             close(file_fd);
+         } else {
+             LOGE("failed to open file %s to dump image", buf);
+         }
+     }
 
 
      AImage_delete(image);
@@ -143,7 +149,7 @@ void printCamProps(ACameraManager *cameraManager, const char *id)
   {
 	  AImageReader* reader = nullptr;
 	  //AIMAGE_FORMAT_YUV_420_888 AIMAGE_FORMAT_JPEG
-	  media_status_t status = AImageReader_new(width, height, AIMAGE_FORMAT_JPEG,4, &reader);
+	  media_status_t status = AImageReader_new(width, height, AIMAGE_FORMAT_YUV_420_888,4, &reader);
 
 	  AImageReader_ImageListener listener;
 	  listener.context=user;
@@ -265,7 +271,7 @@ void YangCameraAndroid::initCamera(){
 	m_deviceStateCallbacks.context=this;
 
 	ACameraManager_openCamera(cameraManager, id.c_str(), &m_deviceStateCallbacks, &m_cameraDevice);
-	//printCamProps(cameraManager, id.c_str());
+	printCamProps(cameraManager, id.c_str());
 
 	ACameraDevice_createCaptureRequest(m_cameraDevice, TEMPLATE_PREVIEW, &m_captureRequest);
 

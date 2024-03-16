@@ -21,12 +21,13 @@
 #include "android/android_custom_surface.h"
 
 #include <xrt/xrt_config_android.h>
-
 // 60 events per second (in us).
 #define POLL_RATE_USEC (1000L / 60) * 1000
 
 
 DEBUG_GET_ONCE_LOG_OPTION(android_log, "ANDROID_SENSORS_LOG", U_LOGGING_WARN)
+
+extern void MyCPlusPlusFunction(struct xrt_vec3 gyro, struct xrt_vec3 accel);
 
 static inline struct android_device *
 android_device(struct xrt_device *xdev)
@@ -44,9 +45,13 @@ android_sensor_callback(int fd, int events, void *data)
 		return 1;
 
 	ASensorEvent event;
-	struct xrt_vec3 gyro;
-	struct xrt_vec3 accel;
+	static struct xrt_vec3 gyro;
+    static struct xrt_vec3 accel;
+    static bool hasgyro = false;
+    static bool hasaccel = false;
+
 	while (ASensorEventQueue_getEvents(d->event_queue, &event, 1) > 0) {
+        ANDROID_ERROR(d, "event.type=%d", event.type);
 
 		switch (event.type) {
 		case ASENSOR_TYPE_ACCELEROMETER: {
@@ -54,7 +59,9 @@ android_sensor_callback(int fd, int events, void *data)
 			accel.y = -event.acceleration.x;
 			accel.z = event.acceleration.z;
 
-			ANDROID_TRACE(d, "accel %ld %.2f %.2f %.2f", event.timestamp, accel.x, accel.y, accel.z);
+            U_LOG_E( "accel %ld %.2f %.2f %.2f", event.timestamp, accel.x, accel.y, accel.z);
+            hasaccel = true;
+
 			break;
 		}
 		case ASENSOR_TYPE_GYROSCOPE: {
@@ -62,22 +69,27 @@ android_sensor_callback(int fd, int events, void *data)
 			gyro.y = event.data[0];
 			gyro.z = event.data[2];
 
-			ANDROID_TRACE(d, "gyro %ld %.2f %.2f %.2f", event.timestamp, gyro.x, gyro.y, gyro.z);
+            U_LOG_E("gyro %ld %.2f %.2f %.2f", event.timestamp, gyro.x, gyro.y, gyro.z);
 
 			// TODO: Make filter handle accelerometer
 			struct xrt_vec3 null_accel;
-
+            hasgyro = true;
 			// Lock last and the fusion.
-			os_mutex_lock(&d->lock);
+//			os_mutex_lock(&d->lock);
 
-			m_imu_3dof_update(&d->fusion, event.timestamp, &null_accel, &gyro);
+//			m_imu_3dof_update(&d->fusion, event.timestamp, &null_accel, &gyro);
 
 			// Now done.
-			os_mutex_unlock(&d->lock);
+//			os_mutex_unlock(&d->lock);
 		}
 		default: ANDROID_TRACE(d, "Unhandled event type %d", event.type);
 		}
 	}
+    if (hasgyro && hasaccel){
+        MyCPlusPlusFunction(accel, gyro);
+        hasgyro = false;
+        hasaccel = false;
+    }
 
 	return 1;
 }
@@ -135,9 +147,10 @@ android_run_thread(void *ptr)
 	}
 
 	int ret = 0;
-	while (d->oth.running && ret != ALOOPER_POLL_ERROR) {
+	while (/*d->oth.running &&*/ ret != ALOOPER_POLL_ERROR) {
 		ret = ALooper_pollAll(0, NULL, NULL, NULL);
 	}
+    ANDROID_ERROR(d, "d->oth.running.type=%d",d->oth.running);
 
 	return NULL;
 }
@@ -161,7 +174,7 @@ android_device_destroy(struct xrt_device *xdev)
 	os_mutex_destroy(&android->lock);
 
 	// Destroy the fusion.
-	m_imu_3dof_close(&android->fusion);
+//	m_imu_3dof_close(&android->fusion);
 
 	// Remove the variable tracking.
 	u_var_remove_root(android);
@@ -178,7 +191,8 @@ android_device_get_tracked_pose(struct xrt_device *xdev,
 	(void)at_timestamp_ns;
 
 	struct android_device *d = android_device(xdev);
-	out_relation->pose.orientation = d->fusion.rot;
+	out_relation->pose.orientation = d->tracking_origin.offset.orientation;
+    out_relation->pose.position = d->tracking_origin.offset.position;
 
 	//! @todo assuming that orientation is actually currently tracked.
 	out_relation->relation_flags = (enum xrt_space_relation_flags)(XRT_SPACE_RELATION_ORIENTATION_VALID_BIT |
@@ -244,7 +258,7 @@ android_device_create(struct xrt_prober *xp)
 
 	d->log_level = debug_get_log_option_android_log();
 
-	m_imu_3dof_init(&d->fusion, M_IMU_3DOF_USE_GRAVITY_DUR_20MS);
+//	m_imu_3dof_init(&d->fusion, M_IMU_3DOF_USE_GRAVITY_DUR_20MS);
 
 	int ret = os_mutex_init(&d->lock);
 	if (ret != 0) {
@@ -308,8 +322,8 @@ android_device_create(struct xrt_prober *xp)
 
 
 	u_var_add_root(d, "Android phone", true);
-	u_var_add_ro_vec3_f32(d, &d->fusion.last.accel, "last.accel");
-	u_var_add_ro_vec3_f32(d, &d->fusion.last.gyro, "last.gyro");
+//	u_var_add_ro_vec3_f32(d, &d->fusion.last.accel, "last.accel");
+//	u_var_add_ro_vec3_f32(d, &d->fusion.last.gyro, "last.gyro");
 
 	d->base.orientation_tracking_supported = true;
 	d->base.position_tracking_supported = true;
@@ -334,9 +348,9 @@ android_device_create(struct xrt_prober *xp)
     xd->tracking_origin->offset.orientation.w = 1.0f;
     snprintf(xd->tracking_origin->name, XRT_TRACKING_NAME_LEN, "%s %s", dev_name, "SLAM Tracker");
 
-    u_var_add_pose(d, &d->pose, "pose");
-    u_var_add_pose(d, &d->offset, "offset");
-    u_var_add_pose(d, &d->tracking_origin.offset, "tracking offset");
+//    u_var_add_pose(d, &d->pose, "pose");
+//    u_var_add_pose(d, &d->offset, "offset");
+//    u_var_add_pose(d, &d->tracking_origin.offset, "tracking offset");
 
     bool tracked = xp->tracking->create_tracked_slam(xp->tracking, &d->slam) >= 0;
     if (!tracked) {

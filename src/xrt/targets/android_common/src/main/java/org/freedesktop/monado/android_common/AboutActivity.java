@@ -8,13 +8,17 @@
 
 package org.freedesktop.monado.android_common;
 
+import android.app.Activity;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.text.method.LinkMovementMethod;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import dagger.hilt.android.AndroidEntryPoint;
@@ -41,10 +45,32 @@ public class AboutActivity extends AppCompatActivity {
         return true;
     }
 
+    //动态申请权限
+    private static final int REQUEST_EXTERNAL_STORAGE = 1;
+    private static String[] PERMISSIONS_STORAGE={
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE"
+    };
+    //权限申请函数，必须在onCreate里面调用
+    public static void verifyStoragePermissions(Activity activity){
+        try {
+            int permisssion= ActivityCompat.checkSelfPermission(activity,"android.permission.WRITE_EXTERNAL_STORAGE" );
+            if (permisssion!= PackageManager.PERMISSION_GRANTED){
+                ActivityCompat.requestPermissions(activity,PERMISSIONS_STORAGE,REQUEST_EXTERNAL_STORAGE);//弹出权限申请对话框
+            }
+            Log.i("zbs", "permisssion" + permisssion);
+
+            Log.i("zbs", "getExternalFilesDir" + activity.getExternalFilesDir(null).getAbsolutePath());
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_about);
+        verifyStoragePermissions(this);
 
         // Default to dark mode universally?
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
