@@ -19,6 +19,7 @@
 
 #include "android/android_globals.h"
 #include "android/android_custom_surface.h"
+#include "math/m_space.h"
 
 #include <xrt/xrt_config_android.h>
 // 60 events per second (in us).
@@ -189,14 +190,37 @@ android_device_get_tracked_pose(struct xrt_device *xdev,
                                 struct xrt_space_relation *out_relation)
 {
 	(void)at_timestamp_ns;
+//    U_LOG_W("android_device_get_tracked_pose %lu", at_timestamp_ns);
 
 	struct android_device *d = android_device(xdev);
-	out_relation->pose.orientation = d->tracking_origin.offset.orientation;
-    out_relation->pose.position = d->tracking_origin.offset.position;
+//	out_relation->pose.orientation = d->tracking_origin.offset.orientation;
+//    out_relation->pose.position = d->tracking_origin.offset.position;
+//
+//	//! @todo assuming that orientation is actually currently tracked.
+//	out_relation->relation_flags = (enum xrt_space_relation_flags)(XRT_SPACE_RELATION_ORIENTATION_VALID_BIT |
+//	                                                               XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT);
 
-	//! @todo assuming that orientation is actually currently tracked.
-	out_relation->relation_flags = (enum xrt_space_relation_flags)(XRT_SPACE_RELATION_ORIENTATION_VALID_BIT |
-	                                                               XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT);
+    xrt_tracked_slam_get_tracked_pose(d->slam, at_timestamp_ns, out_relation);
+
+    int pose_bits = XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT | XRT_SPACE_RELATION_POSITION_TRACKED_BIT;
+    bool pose_tracked = out_relation->relation_flags & pose_bits;
+
+//    U_LOG_W("android_device_get_tracked_pose %d", pose_tracked);
+
+    if (pose_tracked) {
+        d->pose = out_relation->pose;
+    }
+
+    U_LOG_W("android_device_get_tracked_poseat_time %lu___  %f_ %f_  %f", at_timestamp_ns,  out_relation->pose.position.x, out_relation->pose.position.y, out_relation->pose.position.z);
+
+
+    struct xrt_relation_chain relation_chain = {0};
+    m_relation_chain_push_pose(&relation_chain, &d->pose);
+    m_relation_chain_push_pose(&relation_chain, &d->offset);
+    m_relation_chain_resolve(&relation_chain, out_relation);
+    out_relation->relation_flags = (enum xrt_space_relation_flags)(
+            XRT_SPACE_RELATION_ORIENTATION_VALID_BIT | XRT_SPACE_RELATION_POSITION_VALID_BIT |
+            XRT_SPACE_RELATION_ORIENTATION_TRACKED_BIT | XRT_SPACE_RELATION_POSITION_TRACKED_BIT);
 }
 
 //! Corrections specific for original euroc datasets and Kimera.

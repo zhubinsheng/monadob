@@ -88,7 +88,7 @@ if(XRT_FEATURE_SLAM)
 #	set_target_properties(xrt-external-slam PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
 
 	target_link_libraries(xrt-external-slam PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slam_tracker/libbasalt.so)
-#	target_link_libraries(xrt-external-slam PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slam_tracker/libtbb.so)
+	target_link_libraries(xrt-external-slam PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slam_tracker/libtbb.so)
 
 	set_target_properties(xrt-external-slam PROPERTIES LINKER_LANGUAGE CXX)
 	target_include_directories(
